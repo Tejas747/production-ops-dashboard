@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(__file__))
 
-from flask import Flask
+from flask import Flask, send_from_directory
 from flask_cors import CORS
 
 from routes.infrastructure import infrastructure_bp
@@ -19,7 +19,7 @@ from routes.incidents import incidents_bp
 from routes.predictive import predictive_bp
 from routes.ai_assistant import ai_bp
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder='../frontend', static_url_path='')
 CORS(app)
 
 app.register_blueprint(infrastructure_bp)
@@ -36,13 +36,13 @@ app.register_blueprint(incidents_bp)
 app.register_blueprint(predictive_bp)
 app.register_blueprint(ai_bp)
 
-@app.route("/")
+@app.route('/')
 def index():
-    return {"status": "Production Ops Dashboard API is running"}
+    return send_from_directory('../frontend', 'index.html')
 
-@app.route("/api/health")
+@app.route('/api/health')
 def health():
     return {"status": "ok"}
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True, port=5000)

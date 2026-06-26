@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Production Ops Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; display: flex; height: 100vh; overflow: hidden; }
+
+  /* Sidebar */
+  #sidebar { width: 220px; background: #1a1d27; border-right: 1px solid #2d3148; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  #sidebar .logo { padding: 18px 16px; font-size: 13px; font-weight: 700; color: #7c8cf8; border-bottom: 1px solid #2d3148; letter-spacing: 0.5px; }
+  #sidebar .logo span { display: block; font-size: 10px; color: #64748b; font-weight: 400; margin-top: 2px; }
+  .nav-item { padding: 10px 16px; cursor: pointer; font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px; border-left: 3px solid transparent; transition: all 0.2s; }
+  .nav-item:hover { background: #22263a; color: #e2e8f0; }
+  .nav-item.active { background: #22263a; color: #7c8cf8; border-left-color: #7c8cf8; }
+  .nav-item .badge { margin-left: auto; background: #ef4444; color: white; font-size: 10px; padding: 1px 6px; border-radius: 10px; }
+  .nav-item .badge.warn { background: #f59e0b; }
+  .nav-section { padding: 12px 16px 4px; font-size: 10px; color: #475569; letter-spacing: 1px; text-transform: uppercase; }
+
+  /* Main */
+  #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* Top bar */
+  #topbar { background: #1a1d27; border-bottom: 1px solid #2d3148; padding: 10px 24px; display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+  .topbar-title { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+  .topbar-status { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+  .status-dot.warn { background: #f59e0b; }
+  .status-dot.crit { background: #ef4444; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .topbar-meta { margin-left: auto; font-size: 11px; color: #64748b; }
+  .topbar-refresh { background: #2d3148; border: none; color: #94a3b8; padding: 5px 12px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+  .topbar-refresh:hover { background: #3d4168; color: #e2e8f0; }
+
+  /* Content */
+  #content { flex: 1; overflow-y: auto; padding: 24px; }
+  .section { display: none; }
+  .section.active { display: block; }
+  .section-title { font-size: 18px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
+  .section-sub { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+
+  /* Cards */
+  .grid { display: grid; gap: 16px; margin-bottom: 20px; }
+  .grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px; padding: 16px; }
+  .card-title { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card-value { font-size: 26px; font-weight: 700; color: #e2e8f0; }
+  .card-value.ok { color: #22c55e; }
+  .card-value.warning { color: #f59e0b; }
+  .card-value.critical { color: #ef4444; }
+  .card-sub { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+  /* Status badges */
+  .badge-status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-status.ok, .badge-status.healthy, .badge-status.operational, .badge-status.running, .badge-status.online, .badge-status.success, .badge-status.compliant { background: #14532d; color: #22c55e; }
+  .badge-status.warning, .badge-status.degraded, .badge-status.warn { background: #451a03; color: #f59e0b; }
+  .badge-status.critical, .badge-status.crashloopbackoff, .badge-status.down, .badge-status.failed, .badge-status.breached { background: #450a0a; color: #ef4444; }
+
+  /* Chart containers */
+  .chart-wrap { background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .chart-wrap h3 { font-size: 12px; color: #64748b; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .chart-wrap canvas { max-height: 180px; }
+
+  /* Tables */
+  .table-wrap { background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px; overflow: hidden; margin-bottom: 16px; }
+  .table-wrap h3 { font-size: 12px; color: #64748b; padding: 12px 16px; border-bottom: 1px solid #2d3148; text-transform: uppercase; letter-spacing: 0.5px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { padding: 8px 16px; text-align: left; color: #475569; font-weight: 500; border-bottom: 1px solid #2d3148; }
+  td { padding: 10px 16px; border-bottom: 1px solid #1e2235; color: #cbd5e1; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #22263a; }
+
+  /* Progress bars */
+  .progress-bar { background: #2d3148; border-radius: 4px; height: 6px; margin-top: 8px; }
+  .progress-fill { height: 100%; border-radius: 4px; background: #22c55e; transition: width 0.5s; }
+  .progress-fill.warn { background: #f59e0b; }
+  .progress-fill.crit { background: #ef4444; }
+
+  /* Pod grid */
+  .pod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .pod-card { background: #22263a; border: 1px solid #2d3148; border-radius: 6px; padding: 10px; font-size: 11px; }
+  .pod-card .pod-name { color: #94a3b8; margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pod-card .pod-status { font-weight: 600; }
+  .pod-card.running { border-left: 3px solid #22c55e; }
+  .pod-card.warning { border-left: 3px solid #f59e0b; }
+  .pod-card.crashloopbackoff { border-left: 3px solid #ef4444; }
+
+  /* Hygiene items */
+  .hygiene-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid #1e2235; }
+  .hygiene-item:last-child { border-bottom: none; }
+  .hygiene-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .hygiene-dot.ok { background: #22c55e; }
+  .hygiene-dot.warning { background: #f59e0b; }
+  .hygiene-dot.critical { background: #ef4444; }
+  .hygiene-name { font-size: 13px; color: #e2e8f0; flex: 1; }
+  .hygiene-detail { font-size: 11px; color: #64748b; }
+  .hygiene-days { font-size: 12px; font-weight: 600; min-width: 80px; text-align: right; }
+  .hygiene-days.ok { color: #22c55e; }
+  .hygiene-days.warning { color: #f59e0b; }
+  .hygiene-days.critical { color: #ef4444; }
+
+  /* Incident cards */
+  .incident-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: center; gap: 12px; }
+  .incident-sev { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; min-width: 32px; text-align: center; }
+  .incident-sev.P1 { background: #450a0a; color: #ef4444; }
+  .incident-sev.P2 { background: #451a03; color: #f59e0b; }
+  .incident-sev.P3 { background: #1e3a5f; color: #60a5fa; }
+  .incident-title { flex: 1; font-size: 13px; color: #e2e8f0; }
+  .incident-meta { font-size: 11px; color: #64748b; text-align: right; }
+
+  /* Forecast cards */
+  .forecast-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px; padding: 16px; }
+  .forecast-metric { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .forecast-prediction { font-size: 13px; color: #e2e8f0; margin-bottom: 8px; }
+  .forecast-action { font-size: 11px; color: #7c8cf8; }
+
+  /* Vendor cards */
+  .vendor-card { background: #1a1d27; border: 1px solid #2d3148; border-radius: 10px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+  .vendor-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .vendor-name { flex: 1; font-size: 13px; color: #e2e8f0; }
+  .vendor-latency { font-size: 11px; color: #64748b; }
+
+  /* Loading */
+  .loading { color: #475569; font-size: 13px; padding: 40px; text-align: center; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #0f1117; }
+  ::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">⚡ OPS CENTER <span>100k DAU · 20 Services</span></div>
+
+  <div class="nav-section">Infrastructure</div>
+  <div class="nav-item active" onclick="showSection('infrastructure')">🖥️ Infrastructure</div>
+  <div class="nav-item" onclick="showSection('application')">📡 Application</div>
+  <div class="nav-item" onclick="showSection('database')">🗄️ Database</div>
+  <div class="nav-item" onclick="showSection('cache')">⚡ Cache · Redis</div>
+  <div class="nav-item" onclick="showSection('messaging')">📨 Messaging · Kafka</div>
+
+  <div class="nav-section">Dependencies</div>
+  <div class="nav-item" onclick="showSection('external')">🌐 External APIs</div>
+  <div class="nav-item" onclick="showSection('security')">🔒 Security</div>
+  <div class="nav-item" onclick="showSection('hygiene')">🧹 Ops Hygiene</div>
+
+  <div class="nav-section">Business</div>
+  <div class="nav-item" onclick="showSection('cost')">💰 Cost</div>
+  <div class="nav-item" onclick="showSection('reliability')">📊 Reliability</div>
+  <div class="nav-item" onclick="showSection('incidents')">🚨 Incidents</div>
+  <div class="nav-item" onclick="showSection('predictive')">🔮 Predictive</div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="topbar-title">Production Operations Command Center</div>
+    <div class="topbar-status">
+      <div class="status-dot" id="system-dot"></div>
+      <span id="system-status" style="font-size:12px">System Healthy</span>
+    </div>
+    <div class="topbar-meta" id="last-updated">Last updated: --</div>
+    <button class="topbar-refresh" onclick="refreshAll()">↻ Refresh</button>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+
+    <!-- SECTION 1: INFRASTRUCTURE -->
+    <div class="section active" id="section-infrastructure">
+      <div class="section-title">Infrastructure Health</div>
+      <div class="section-sub">Will a server die soon? Will we run out of capacity?</div>
+      <div class="grid grid-4" id="infra-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>CPU History (30 min)</h3><canvas id="chart-cpu"></canvas></div>
+        <div class="chart-wrap"><h3>Memory History (30 min)</h3><canvas id="chart-memory"></canvas></div>
+      </div>
+      <div class="chart-wrap"><h3>Network Throughput (Mbps)</h3><canvas id="chart-network"></canvas></div>
+      <div class="table-wrap">
+        <h3>Kubernetes Nodes</h3>
+        <table><thead><tr><th>Node</th><th>CPU</th><th>Memory</th><th>Status</th></tr></thead>
+        <tbody id="nodes-table"></tbody></table>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title">Kubernetes Pods (20 Services)</div>
+        <div class="pod-grid" id="pods-grid"></div>
+      </div>
+    </div>
+
+    <!-- SECTION 2: APPLICATION -->
+    <div class="section" id="section-application">
+      <div class="section-title">Application Health</div>
+      <div class="section-sub">Are users able to use the application?</div>
+      <div class="grid grid-4" id="app-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Requests Per Second</h3><canvas id="chart-rps"></canvas></div>
+        <div class="chart-wrap"><h3>P95 Latency (ms)</h3><canvas id="chart-latency"></canvas></div>
+      </div>
+      <div class="chart-wrap"><h3>Error Rate (%)</h3><canvas id="chart-errors"></canvas></div>
+      <div class="table-wrap">
+        <h3>Slow Endpoints</h3>
+        <table><thead><tr><th>Endpoint</th><th>Latency</th><th>Status</th></tr></thead>
+        <tbody id="slow-endpoints-table"></tbody></table>
+      </div>
+      <div class="table-wrap">
+        <h3>Dependency Failures</h3>
+        <table><thead><tr><th>Service</th><th>Error</th></tr></thead>
+        <tbody id="dep-failures-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SECTION 3: DATABASE -->
+    <div class="section" id="section-database">
+      <div class="section-title">Database Health</div>
+      <div class="section-sub">Can the database survive the next week?</div>
+      <div class="grid grid-4" id="db-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Connections (30 min)</h3><canvas id="chart-db-conn"></canvas></div>
+        <div class="chart-wrap"><h3>Query Latency (ms)</h3><canvas id="chart-db-latency"></canvas></div>
+      </div>
+      <div class="table-wrap">
+        <h3>Slow Queries</h3>
+        <table><thead><tr><th>Query</th><th>Duration</th><th>Calls</th></tr></thead>
+        <tbody id="slow-queries-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SECTION 4: CACHE -->
+    <div class="section" id="section-cache">
+      <div class="section-title">Cache Layer · Redis</div>
+      <div class="section-sub">Will Redis become the bottleneck?</div>
+      <div class="grid grid-4" id="cache-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Memory Usage (%)</h3><canvas id="chart-cache-mem"></canvas></div>
+        <div class="chart-wrap"><h3>Hit Ratio (%)</h3><canvas id="chart-hit-ratio"></canvas></div>
+      </div>
+    </div>
+
+    <!-- SECTION 5: MESSAGING -->
+    <div class="section" id="section-messaging">
+      <div class="section-title">Messaging · Kafka</div>
+      <div class="section-sub">Are asynchronous systems healthy?</div>
+      <div class="grid grid-4" id="kafka-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Consumer Lag</h3><canvas id="chart-lag"></canvas></div>
+        <div class="chart-wrap"><h3>DLQ Growth</h3><canvas id="chart-dlq"></canvas></div>
+      </div>
+      <div class="table-wrap">
+        <h3>Topic Health</h3>
+        <table><thead><tr><th>Topic</th><th>Throughput/sec</th><th>Consumer Lag</th><th>Status</th></tr></thead>
+        <tbody id="topics-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SECTION 6: EXTERNAL -->
+    <div class="section" id="section-external">
+      <div class="section-title">External Dependencies</div>
+      <div class="section-sub">Are external vendors causing issues?</div>
+      <div class="grid grid-3" id="vendor-cards"></div>
+      <div class="chart-wrap"><h3>Payment Gateway Latency (ms)</h3><canvas id="chart-payment-latency"></canvas></div>
+    </div>
+
+    <!-- SECTION 7: SECURITY -->
+    <div class="section" id="section-security">
+      <div class="section-title">Security & Compliance</div>
+      <div class="section-sub">Will security break before operations?</div>
+      <div class="grid grid-4" id="security-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Failed Logins / min</h3><canvas id="chart-logins"></canvas></div>
+        <div class="chart-wrap"><h3>WAF Events / hour</h3><canvas id="chart-waf"></canvas></div>
+      </div>
+    </div>
+
+    <!-- SECTION 8: HYGIENE -->
+    <div class="section" id="section-hygiene">
+      <div class="section-title">Operational Hygiene</div>
+      <div class="section-sub">The things that silently kill production systems.</div>
+      <div class="table-wrap">
+        <h3>Hygiene Checklist</h3>
+        <div id="hygiene-list"></div>
+      </div>
+    </div>
+
+    <!-- SECTION 9: COST -->
+    <div class="section" id="section-cost">
+      <div class="section-title">Cost Monitoring</div>
+      <div class="section-sub">Which service is wasting money?</div>
+      <div class="grid grid-4" id="cost-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Daily Cost Trend ($)</h3><canvas id="chart-daily-cost"></canvas></div>
+        <div class="chart-wrap"><h3>Cost by Service ($)</h3><canvas id="chart-cost-service"></canvas></div>
+      </div>
+      <div class="table-wrap">
+        <h3>Idle Resources (Waste)</h3>
+        <table><thead><tr><th>Resource</th><th>Type</th><th>Waste/Month</th></tr></thead>
+        <tbody id="idle-table"></tbody></table>
+      </div>
+    </div>
+
+    <!-- SECTION 10: RELIABILITY -->
+    <div class="section" id="section-reliability">
+      <div class="section-title">Reliability</div>
+      <div class="section-sub">Are we getting more reliable?</div>
+      <div class="grid grid-4" id="reliability-summary-cards"></div>
+      <div class="grid grid-2">
+        <div class="chart-wrap"><h3>Availability % (30 min)</h3><canvas id="chart-availability"></canvas></div>
+        <div class="chart-wrap"><h3>Error Budget Remaining %</h3><canvas id="chart-error-budget"></canvas></div>
+      </div>
+    </div>
+
+    <!-- SECTION 11: INCIDENTS -->
+    <div class="section" id="section-incidents">
+      <div class="section-title">Incident Center</div>
+      <div class="section-sub">Open incidents requiring attention right now.</div>
+      <div class="grid grid-3" id="incident-summary-cards"></div>
+      <div id="incidents-list"></div>
+    </div>
+
+    <!-- SECTION 12: PREDICTIVE -->
+    <div class="section" id="section-predictive">
+      <div class="section-title">Predictive Monitoring</div>
+      <div class="section-sub">What will break before users notice?</div>
+      <div class="grid grid-2" id="forecast-cards"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+const charts = {};
+
+// Chart defaults
+Chart.defaults.color = '#64748b';
+Chart.defaults.borderColor = '#2d3148';
+
+function makeLineChart(id, labels, data, color='#7c8cf8', fill=true) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: fill ? color + '22' : 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.4,
+        fill
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#1e2235' }, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+        y: { grid: { color: '#1e2235' }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function makeBarChart(id, labels, data, color='#7c8cf8') {
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: color + 'cc', borderRadius: 4 }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { grid: { color: '#1e2235' }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function statusColor(s) {
+  if (!s) return '#64748b';
+  s = s.toLowerCase();
+  if (['ok','healthy','operational','running','online','success','compliant'].includes(s)) return '#22c55e';
+  if (['warning','degraded','warn','lagging'].includes(s)) return '#f59e0b';
+  return '#ef4444';
+}
+
+function statusClass(s) {
+  if (!s) return '';
+  s = s.toLowerCase();
+  if (['ok','healthy','operational','running','online','success','compliant'].includes(s)) return 'ok';
+  if (['warning','degraded','warn','lagging'].includes(s)) return 'warning';
+  return 'critical';
+}
+
+function card(title, value, sub='', status='') {
+  const cls = status ? statusClass(status) : '';
+  return `<div class="card">
+    <div class="card-title">${title}</div>
+    <div class="card-value ${cls}">${value}</div>
+    ${sub ? `<div class="card-sub">${sub}</div>` : ''}
+  </div>`;
+}
+
+function ts(series) { return series.map(p => p.timestamp); }
+function vals(series) { return series.map(p => p.value); }
+
+// ── SECTION LOADERS ──────────────────────────────────────
+
+async function loadInfrastructure() {
+  const d = await fetch(`${API}/api/infrastructure`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('infra-summary-cards').innerHTML = [
+    card('CPU', s.cpu + '%', `Status: ${s.cpu_status}`, s.cpu_status),
+    card('Memory', s.memory + '%', `Status: ${s.memory_status}`, s.memory_status),
+    card('Disk', s.disk + '%', `IOPS: ${s.disk_iops}`, s.disk_status),
+    card('Nodes', `${s.nodes_online}/${s.nodes_total}`, `Pods: ${s.pods_running}/${s.pods_total}`, s.nodes_online === s.nodes_total ? 'ok' : 'critical'),
+    card('Network', s.network_throughput_mbps + ' Mbps', `Errors: ${s.network_errors}`, 'ok'),
+    card('Load Avg', s.load_average, '1-min load average', s.load_average > 4 ? 'warning' : 'ok'),
+    card('Container Restarts', s.container_restarts, 'All pods total', s.container_restarts > 10 ? 'warning' : 'ok'),
+    card('Autoscaling', s.autoscaling_events, 'Events today', 'ok'),
+  ].join('');
+
+  makeLineChart('chart-cpu', ts(d.cpu_history), vals(d.cpu_history), '#7c8cf8');
+  makeLineChart('chart-memory', ts(d.memory_history), vals(d.memory_history), '#06b6d4');
+  makeLineChart('chart-network', ts(d.network_history), vals(d.network_history), '#22c55e');
+
+  document.getElementById('nodes-table').innerHTML = d.nodes.map(n => `
+    <tr>
+      <td>${n.name}</td>
+      <td><span class="badge-status ${n.cpu_status}">${n.cpu}%</span></td>
+      <td><span class="badge-status ${n.memory_status}">${n.memory}%</span></td>
+      <td><span class="badge-status ${n.availability}">${n.availability}</span></td>
+    </tr>`).join('');
+
+  document.getElementById('pods-grid').innerHTML = d.pods.map(p => `
+    <div class="pod-card ${p.status}">
+      <div class="pod-name" title="${p.name}">${p.name}</div>
+      <div class="pod-status" style="color:${statusColor(p.status)}">${p.status}</div>
+      <div style="font-size:10px;color:#475569;margin-top:2px">restarts: ${p.restarts}</div>
+    </div>`).join('');
+}
+
+async function loadApplication() {
+  const d = await fetch(`${API}/api/application`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('app-summary-cards').innerHTML = [
+    card('Requests/sec', s.rps, 'Current RPS', 'ok'),
+    card('P50 Latency', s.p50_ms + 'ms', 'Median', 'ok'),
+    card('P95 Latency', s.p95_ms + 'ms', 'Target < 500ms', s.p95_status),
+    card('P99 Latency', s.p99_ms + 'ms', 'Target < 800ms', s.p99_status),
+    card('Error Rate', s.error_rate_pct + '%', 'Target < 1%', s.error_status),
+    card('HTTP 4xx', s.http_4xx + '/min', 'Client errors', 'ok'),
+    card('HTTP 5xx', s.http_5xx + '/min', 'Server errors', s.http_5xx > 10 ? 'warning' : 'ok'),
+    card('API Success', s.api_success_pct + '%', 'Overall success rate', s.api_success_pct > 99 ? 'ok' : 'warning'),
+  ].join('');
+
+  makeLineChart('chart-rps', ts(d.rps_history), vals(d.rps_history), '#7c8cf8');
+  makeLineChart('chart-latency', ts(d.latency_history), vals(d.latency_history), '#f59e0b');
+  makeLineChart('chart-errors', ts(d.error_rate_history), vals(d.error_rate_history), '#ef4444');
+
+  document.getElementById('slow-endpoints-table').innerHTML = d.slow_endpoints.map(e => `
+    <tr><td>${e.endpoint}</td><td>${e.latency_ms}ms</td><td><span class="badge-status ${e.status}">${e.status}</span></td></tr>`).join('');
+
+  const depEl = document.getElementById('dep-failures-table');
+  depEl.innerHTML = d.dependency_failures.length
+    ? d.dependency_failures.map(f => `<tr><td>${f.service}</td><td style="color:#ef4444">${f.error}</td></tr>`).join('')
+    : '<tr><td colspan="2" style="color:#22c55e">No dependency failures detected</td></tr>';
+}
+
+async function loadDatabase() {
+  const d = await fetch(`${API}/api/database`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('db-summary-cards').innerHTML = [
+    card('Availability', s.availability, 'PostgreSQL primary', s.availability === 'online' ? 'ok' : 'critical'),
+    card('Connections', s.connections, `Status: ${s.connections_status}`, s.connections_status),
+    card('Active Queries', s.active_queries, 'Currently running', 'ok'),
+    card('Slow Queries', s.slow_queries, 'Target: 0', s.slow_queries_status),
+    card('Query Latency', s.query_latency_ms + 'ms', 'Avg query time', 'ok'),
+    card('Replication Lag', s.replication_lag_s + 's', 'Target < 5s', s.replication_status),
+    card('Deadlocks', s.deadlocks, 'Last hour', s.deadlocks > 0 ? 'warning' : 'ok'),
+    card('Backup', s.backup_status, `Age: ${s.backup_age_hours}h`, s.backup_status === 'success' ? 'ok' : 'critical'),
+  ].join('');
+
+  makeLineChart('chart-db-conn', ts(d.connections_history), vals(d.connections_history), '#7c8cf8');
+  makeLineChart('chart-db-latency', ts(d.latency_history), vals(d.latency_history), '#f59e0b');
+
+  document.getElementById('slow-queries-table').innerHTML = d.slow_query_list.map(q => `
+    <tr><td style="font-family:monospace;font-size:11px">${q.query}</td><td>${q.duration_ms}ms</td><td>${q.calls}</td></tr>`).join('');
+}
+
+async function loadCache() {
+  const d = await fetch(`${API}/api/cache`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('cache-summary-cards').innerHTML = [
+    card('Availability', s.availability, 'Redis primary', s.availability === 'online' ? 'ok' : 'critical'),
+    card('Memory Usage', s.memory_usage_pct + '%', 'Target < 75%', s.memory_status),
+    card('Hit Ratio', s.hit_ratio_pct + '%', 'Target > 80%', s.hit_ratio_status),
+    card('Miss Ratio', s.miss_ratio_pct + '%', 'Cache misses', s.miss_ratio_pct > 20 ? 'warning' : 'ok'),
+    card('Eviction Rate', s.eviction_rate + '/s', 'Keys evicted', s.eviction_status),
+    card('Connections', s.connections, 'Active connections', 'ok'),
+    card('Replication', s.replication_status, 'Replica sync', s.replication_status),
+  ].join('');
+
+  makeLineChart('chart-cache-mem', ts(d.memory_history), vals(d.memory_history), '#06b6d4');
+  makeLineChart('chart-hit-ratio', ts(d.hit_ratio_history), vals(d.hit_ratio_history), '#22c55e');
+}
+
+async function loadMessaging() {
+  const d = await fetch(`${API}/api/messaging`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('kafka-summary-cards').innerHTML = [
+    card('Availability', s.availability, 'Kafka cluster', s.availability === 'online' ? 'ok' : 'critical'),
+    card('Consumer Lag', s.consumer_lag.toLocaleString(), 'Target < 10k', s.lag_status),
+    card('Message Backlog', s.message_backlog.toLocaleString(), 'Queued messages', 'ok'),
+    card('DLQ Size', s.dlq_size, 'Dead letter queue', s.dlq_status),
+    card('Producer Failures', s.producer_failures, 'Failed produces', s.producer_failures > 5 ? 'warning' : 'ok'),
+    card('Throughput', s.throughput_per_sec.toLocaleString() + '/s', 'Messages per second', 'ok'),
+  ].join('');
+
+  makeLineChart('chart-lag', ts(d.lag_history), vals(d.lag_history), '#f59e0b');
+  makeLineChart('chart-dlq', ts(d.dlq_history), vals(d.dlq_history), '#ef4444');
+
+  document.getElementById('topics-table').innerHTML = d.topics.map(t => `
+    <tr><td>${t.topic}</td><td>${t.throughput_per_sec.toLocaleString()}</td><td>${t.consumer_lag.toLocaleString()}</td>
+    <td><span class="badge-status ${t.lag_status}">${t.lag_status}</span></td></tr>`).join('');
+}
+
+async function loadExternal() {
+  const d = await fetch(`${API}/api/external`).then(r => r.json());
+
+  const dotColor = { operational: '#22c55e', degraded: '#f59e0b', down: '#ef4444' };
+  document.getElementById('vendor-cards').innerHTML = d.vendors.map(v => `
+    <div class="vendor-card">
+      <div class="vendor-dot" style="background:${dotColor[v.status] || '#64748b'}"></div>
+      <div class="vendor-name">${v.name}</div>
+      <div class="vendor-latency">${v.latency_ms}ms</div>
+      <span class="badge-status ${v.status}">${v.status}</span>
+    </div>`).join('');
+
+  makeLineChart('chart-payment-latency', ts(d.payment_latency_history), vals(d.payment_latency_history), '#7c8cf8');
+}
+
+async function loadSecurity() {
+  const d = await fetch(`${API}/api/security`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('security-summary-cards').innerHTML = [
+    card('Failed Logins', s.failed_logins_per_min + '/min', 'Target < 50', s.failed_login_status),
+    card('Blocked IPs', s.blocked_ips, 'Active blocks', 'ok'),
+    card('WAF Events', s.waf_events_per_hour + '/hr', 'Web app firewall', 'ok'),
+    card('SSL Expiry', s.cert_expiry_days + ' days', s.cert_expiry_date, s.cert_status),
+    card('Secret Expiry', s.secret_expiry_days + ' days', 'API secrets', s.secret_status),
+    card('IAM Key Expiry', s.iam_key_expiry_days + ' days', 'Access keys', s.iam_status),
+    card('Open Vulns', s.open_vulnerabilities, 'Total vulnerabilities', s.open_vulnerabilities > 10 ? 'warning' : 'ok'),
+    card('Critical CVEs', s.critical_cves, 'CVSS > 9.0', s.cve_status),
+  ].join('');
+
+  makeLineChart('chart-logins', ts(d.failed_login_history), vals(d.failed_login_history), '#ef4444');
+  makeLineChart('chart-waf', ts(d.waf_history), vals(d.waf_history), '#f59e0b');
+}
+
+async function loadHygiene() {
+  const d = await fetch(`${API}/api/hygiene`).then(r => r.json());
+
+  document.getElementById('hygiene-list').innerHTML = d.items.map(item => `
+    <div class="hygiene-item">
+      <div class="hygiene-dot ${item.status}"></div>
+      <div>
+        <div class="hygiene-name">${item.name}</div>
+        <div class="hygiene-detail">${item.detail}</div>
+      </div>
+      <div class="hygiene-days ${item.status}">
+        ${item.days !== null ? item.days + ' days' : item.status.toUpperCase()}
+      </div>
+    </div>`).join('');
+}
+
+async function loadCost() {
+  const d = await fetch(`${API}/api/cost`).then(r => r.json());
+  const s = d.summary;
+
+  const dailyStatus = s.daily_variance_pct > 20 ? 'critical' : s.daily_variance_pct > 10 ? 'warning' : 'ok';
+  const monthlyStatus = s.monthly_variance_pct > 20 ? 'critical' : s.monthly_variance_pct > 10 ? 'warning' : 'ok';
+
+  document.getElementById('cost-summary-cards').innerHTML = [
+    card('Daily Cost', '$' + s.daily_cost.toLocaleString(), `Budget: $${s.daily_budget}`, dailyStatus),
+    card('Monthly Cost', '$' + s.monthly_cost.toLocaleString(), `Budget: $${s.monthly_budget}`, monthlyStatus),
+    card('Daily Variance', (s.daily_variance_pct > 0 ? '+' : '') + s.daily_variance_pct + '%', 'vs budget', dailyStatus),
+    card('Idle Waste', '$' + s.idle_waste_monthly + '/mo', 'Unused resources', 'warning'),
+  ].join('');
+
+  makeLineChart('chart-daily-cost', ts(d.daily_cost_history), vals(d.daily_cost_history), '#7c8cf8');
+  makeBarChart('chart-cost-service',
+    d.services.map(s => s.service),
+    d.services.map(s => s.monthly_cost),
+    '#7c8cf8'
+  );
+
+  document.getElementById('idle-table').innerHTML = d.idle_resources.map(r => `
+    <tr><td>${r.resource}</td><td>${r.type}</td><td style="color:#f59e0b">$${r.waste_per_month}/mo</td></tr>`).join('');
+}
+
+async function loadReliability() {
+  const d = await fetch(`${API}/api/reliability`).then(r => r.json());
+  const s = d.summary;
+
+  document.getElementById('reliability-summary-cards').innerHTML = [
+    card('Availability', s.availability_pct + '%', `SLO: ${s.slo_target_pct}%`, s.slo_status === 'ok' ? 'ok' : 'critical'),
+    card('SLO Status', s.slo_status.toUpperCase(), `Achieved: ${s.slo_achieved}%`, s.slo_status),
+    card('SLA Compliance', s.sla_compliance, 'Contract SLA', s.sla_compliance),
+    card('Error Budget', s.error_budget_remaining_pct + '%', 'Remaining this month', s.error_budget_status),
+    card('MTTR', s.mttr_minutes + ' min', 'Mean time to resolve', s.mttr_minutes < 30 ? 'ok' : 'warning'),
+    card('MTTD', s.mttd_minutes + ' min', 'Mean time to detect', s.mttd_minutes < 15 ? 'ok' : 'warning'),
+    card('Incidents (30d)', s.incident_count_30d, 'Total incidents', s.incident_count_30d > 8 ? 'warning' : 'ok'),
+  ].join('');
+
+  makeLineChart('chart-availability', ts(d.availability_history), vals(d.availability_history), '#22c55e');
+  makeLineChart('chart-error-budget', ts(d.error_budget_history), vals(d.error_budget_history), '#7c8cf8');
+}
+
+async function loadIncidents() {
+  const d = await fetch(`${API}/api/incidents`).then(r => r.json());
+
+  document.getElementById('incident-summary-cards').innerHTML = [
+    card('Open Incidents', d.open_count, 'Require attention', d.open_count > 3 ? 'critical' : 'warning'),
+    card('P1 Critical', d.p1_count, 'Highest severity', d.p1_count > 0 ? 'critical' : 'ok'),
+    card('P2 High', d.p2_count, 'High severity', d.p2_count > 2 ? 'warning' : 'ok'),
+  ].join('');
+
+  document.getElementById('incidents-list').innerHTML = d.incidents.map(i => `
+    <div class="incident-card">
+      <div class="incident-sev ${i.severity}">${i.severity}</div>
+      <div>
+        <div class="incident-title">${i.title}</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">${i.service} · ${i.status} · Owner: ${i.owner}</div>
+      </div>
+      <div class="incident-meta">
+        <div>${i.opened_at}</div>
+        <div style="margin-top:2px">${i.duration_minutes} min ago</div>
+        ${i.escalated ? '<div style="color:#ef4444;margin-top:2px">⚠ Escalated</div>' : ''}
+      </div>
+    </div>`).join('');
+}
+
+async function loadPredictive() {
+  const d = await fetch(`${API}/api/predictive`).then(r => r.json());
+
+  const statusIcon = { ok: '✅', warning: '⚠️', critical: '🔴' };
+  document.getElementById('forecast-cards').innerHTML = d.forecasts.map(f => `
+    <div class="forecast-card">
+      <div class="forecast-metric">${statusIcon[f.status] || '❓'} ${f.metric}</div>
+      <div class="forecast-prediction" style="color:${statusColor(f.status)}">${f.prediction}</div>
+      <div class="forecast-action">→ ${f.action}</div>
+    </div>`).join('');
+}
+
+// ── NAVIGATION ───────────────────────────────────────────
+
+const loaders = {
+  infrastructure: loadInfrastructure,
+  application: loadApplication,
+  database: loadDatabase,
+  cache: loadCache,
+  messaging: loadMessaging,
+  external: loadExternal,
+  security: loadSecurity,
+  hygiene: loadHygiene,
+  cost: loadCost,
+  reliability: loadReliability,
+  incidents: loadIncidents,
+  predictive: loadPredictive
+};
+
+let currentSection = 'infrastructure';
+
+function showSection(name) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  currentSection = name;
+  loaders[name]();
+}
+
+async function refreshAll() {
+  await loaders[currentSection]();
+  document.getElementById('last-updated').textContent =
+    'Last updated: ' + new Date().toLocaleTimeString();
+}
+
+// Auto refresh every 30 seconds
+setInterval(refreshAll, 30000);
+
+// Initial load
+loadInfrastructure();
+document.getElementById('last-updated').textContent =
+  'Last updated: ' + new Date().toLocaleTimeString();
+</script>
+</body>
+</html>
