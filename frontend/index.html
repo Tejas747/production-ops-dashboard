@@ -151,8 +151,6 @@
   <div class="nav-item" onclick="showSection('external')">🌐 External APIs</div>
   <div class="nav-item" onclick="showSection('security')">🔒 Security</div>
   <div class="nav-item" onclick="showSection('hygiene')">🧹 Ops Hygiene</div>
-  <div class="nav-section">AI Assistant</div>
-  <div class="nav-item" onclick="showSection('ai')">🤖 AI Assistant</div>
   <div class="nav-section">Business</div>
   <div class="nav-item" onclick="showSection('cost')">💰 Cost</div>
   <div class="nav-item" onclick="showSection('reliability')">📊 Reliability</div>
@@ -735,15 +733,112 @@ async function askQuestion(question) {
     });
     const d = await res.json();
 
-    document.getElementById('ai-question').textContent = '❓ ' + d.question;
-    document.getElementById('ai-answer').textContent = d.answer;
+    document.getElementById('ai-question').textContent = d.question;
+    document.getElementById('ai-answer').innerHTML = `
+      <div style="margin-bottom:14px">
+        <div style="font-size:13px;color:#e2e8f0;font-weight:500;margin-bottom:6px">${d.summary}</div>
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Observed</div>
+        ${d.observed.map(o => `<div style="font-size:12px;color:#94a3b8;padding:4px 0;border-left:2px solid #2d3148;padding-left:10px;margin-bottom:4px">${o}</div>`).join('')}
+      </div>
+      <div style="margin-bottom:14px">
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Likely Cause</div>
+        <div style="font-size:12px;color:#f59e0b;padding:8px 12px;background:#451a0322;border-radius:6px;border-left:3px solid #f59e0b">${d.likely_cause}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Recommended Action</div>
+        <div style="font-size:12px;color:#22c55e;padding:8px 12px;background:#14532d22;border-radius:6px;border-left:3px solid #22c55e">${d.recommended_action}</div>
+      </div>
+    `;
     document.getElementById('ai-response').style.display = 'block';
   } catch(e) {
-    document.getElementById('ai-answer').textContent = 'Error connecting to AI assistant.';
+    document.getElementById('ai-answer').innerHTML = `<div style="color:#ef4444">Error connecting to assistant.</div>`;
     document.getElementById('ai-response').style.display = 'block';
   } finally {
     document.getElementById('ai-loading').style.display = 'none';
   }
+}
+
+function toggleChat() {
+  const panel = document.getElementById('chat-panel');
+  const bubble = document.getElementById('chat-bubble');
+  const isOpen = panel.style.display === 'flex';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  bubble.style.display = isOpen ? 'flex' : 'none';
+}
+
+async function sendChat(prefill) {
+  const input = document.getElementById('chat-input');
+  const question = prefill || input.value.trim();
+  if (!question) return;
+  input.value = '';
+
+  const messages = document.getElementById('chat-messages');
+
+  // User bubble
+  const userMsg = document.createElement('div');
+  userMsg.className = 'chat-msg-user';
+  userMsg.textContent = question;
+  messages.appendChild(userMsg);
+
+  // Loading indicator
+  const loading = document.createElement('div');
+  loading.className = 'chat-msg-loading';
+  loading.textContent = 'Analyzing live metrics...';
+  messages.appendChild(loading);
+  messages.scrollTop = messages.scrollHeight;
+
+  try {
+    const res = await fetch(`${API}/api/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const d = await res.json();
+
+    loading.remove();
+
+    const botMsg = document.createElement('div');
+    botMsg.className = 'chat-msg-bot';
+    botMsg.innerHTML = `
+      <div style="font-size:12px;color:#e2e8f0;font-weight:500;margin-bottom:8px">${d.summary}</div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Observed</div>
+        ${d.observed.map(o => `<div style="padding:3px 0;border-left:2px solid #2d3148;padding-left:8px;margin-bottom:3px;font-size:11px;color:#94a3b8">${o}</div>`).join('')}
+      </div>
+      <div style="padding:6px 8px;background:#451a0322;border-left:3px solid #f59e0b;border-radius:4px;font-size:11px;color:#f59e0b;margin-bottom:6px">${d.likely_cause}</div>
+      <div style="padding:6px 8px;background:#14532d22;border-left:3px solid #22c55e;border-radius:4px;font-size:11px;color:#22c55e">${d.recommended_action}</div>
+    `;
+    messages.appendChild(botMsg);
+
+  } catch(e) {
+    loading.remove();
+    const errMsg = document.createElement('div');
+    errMsg.className = 'chat-msg-bot';
+    errMsg.innerHTML = '<span style="color:#ef4444">Error connecting to assistant.</span>';
+    messages.appendChild(errMsg);
+  }
+
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function clearChat() {
+  const messages = document.getElementById('chat-messages');
+  messages.innerHTML = `
+    <div style="background:#22263a;border-radius:10px;padding:12px;font-size:12px;color:#94a3b8;line-height:1.6">
+      Ask me anything about your production system. I analyze live metrics to give you answers.
+    </div>
+    <div style="font-size:10px;color:#475569;margin-top:4px">Quick questions:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button onclick="sendChat('Why is checkout failing?')" class="quick-btn">Checkout failing?</button>
+      <button onclick="sendChat('Is the database healthy?')" class="quick-btn">Database health?</button>
+      <button onclick="sendChat('What will break tomorrow?')" class="quick-btn">What breaks tomorrow?</button>
+      <button onclick="sendChat('Which service wastes money?')" class="quick-btn">Cost waste?</button>
+      <button onclick="sendChat('Is Redis a bottleneck?')" class="quick-btn">Redis bottleneck?</button>
+      <button onclick="sendChat('Overall system health?')" class="quick-btn">Overall health?</button>
+    </div>
+  `;
 }
 
 // ── NAVIGATION ───────────────────────────────────────────
@@ -782,12 +877,109 @@ async function refreshAll() {
 }
 
 // Auto refresh every 30 seconds
-setInterval(refreshAll, 30000);
+setInterval(refreshAll, 10000);
 
 // Initial load
 loadInfrastructure();
 document.getElementById('last-updated').textContent =
   'Last updated: ' + new Date().toLocaleTimeString();
 </script>
+
+<!-- FLOATING AI CHAT BUBBLE -->
+<div id="chat-bubble" onclick="toggleChat()"
+  style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;background:#7c8cf8;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px #7c8cf855;z-index:1000;transition:all 0.2s">
+  💬
+</div>
+
+<!-- CHAT PANEL -->
+<div id="chat-panel"
+  style="position:fixed;bottom:90px;right:24px;width:380px;height:520px;background:#1a1d27;border:1px solid #2d3148;border-radius:14px;display:none;flex-direction:column;z-index:999;box-shadow:0 8px 40px #00000066;overflow:hidden">
+
+  <!-- Chat header -->
+  <div style="background:#22263a;padding:14px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2d3148;flex-shrink:0">
+    <div style="width:32px;height:32px;background:#7c8cf8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px">🤖</div>
+    <div>
+      <div style="font-size:13px;font-weight:600;color:#e2e8f0">Ops Assistant</div>
+      <div style="font-size:10px;color:#22c55e">Live system data</div>
+    </div>
+    <button onclick="clearChat()" style="background:none;border:1px solid #38bdf8;color:#38bdf8;font-size:11px;cursor:pointer;margin-left:auto;padding:4px 10px;border-radius:4px;font-weight:500">Clear Chat</button>
+    <button onclick="toggleChat()" style="background:none;border:none;color:#64748b;font-size:18px;cursor:pointer;line-height:1;margin-left:8px">×</button>
+  </div>
+
+  <!-- Chat messages -->
+  <div id="chat-messages"
+    style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px">
+
+    <!-- Welcome message -->
+    <div style="background:#22263a;border-radius:10px;padding:12px;font-size:12px;color:#94a3b8;line-height:1.6">
+      Ask me anything about your production system. I analyze live metrics to give you answers.
+    </div>
+
+    <!-- Quick questions -->
+    <div style="font-size:10px;color:#475569;margin-top:4px">Quick questions:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px">
+      <button onclick="sendChat('Why is checkout failing?')" class="quick-btn">Checkout failing?</button>
+      <button onclick="sendChat('Is the database healthy?')" class="quick-btn">Database health?</button>
+      <button onclick="sendChat('What will break tomorrow?')" class="quick-btn">What breaks tomorrow?</button>
+      <button onclick="sendChat('Which service wastes money?')" class="quick-btn">Cost waste?</button>
+      <button onclick="sendChat('Is Redis a bottleneck?')" class="quick-btn">Redis bottleneck?</button>
+      <button onclick="sendChat('Overall system health?')" class="quick-btn">Overall health?</button>
+    </div>
+  </div>
+
+  <!-- Input -->
+  <div style="padding:12px;border-top:1px solid #2d3148;display:flex;gap:8px;flex-shrink:0">
+    <input id="chat-input" type="text" placeholder="Ask about your system..."
+      style="flex:1;background:#0f1117;border:1px solid #2d3148;color:#e2e8f0;padding:8px 12px;border-radius:8px;font-size:12px;outline:none"
+      onkeydown="if(event.key==='Enter') sendChat()"/>
+    <button onclick="sendChat()"
+      style="background:#7c8cf8;border:none;color:white;padding:8px 14px;border-radius:8px;font-size:12px;cursor:pointer;font-weight:600">
+      Send
+    </button>
+  </div>
+</div>
+
+<style>
+.quick-btn {
+  background: #22263a;
+  border: 1px solid #2d3148;
+  color: #94a3b8;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.quick-btn:hover { background: #2d3148; color: #e2e8f0; }
+.chat-msg-user {
+  align-self: flex-end;
+  background: #7c8cf833;
+  border: 1px solid #7c8cf855;
+  border-radius: 10px 10px 2px 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #e2e8f0;
+  max-width: 85%;
+}
+.chat-msg-bot {
+  align-self: flex-start;
+  background: #22263a;
+  border: 1px solid #2d3148;
+  border-radius: 10px 10px 10px 2px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: #94a3b8;
+  max-width: 95%;
+  line-height: 1.6;
+}
+.chat-msg-loading {
+  align-self: flex-start;
+  color: #475569;
+  font-size: 12px;
+  padding: 6px 0;
+}
+#chat-messages::-webkit-scrollbar { width: 4px; }
+#chat-messages::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+</style>
 </body>
 </html>
