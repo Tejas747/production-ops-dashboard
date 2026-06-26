@@ -151,12 +151,52 @@
   <div class="nav-item" onclick="showSection('external')">🌐 External APIs</div>
   <div class="nav-item" onclick="showSection('security')">🔒 Security</div>
   <div class="nav-item" onclick="showSection('hygiene')">🧹 Ops Hygiene</div>
-
+  <div class="nav-section">AI Assistant</div>
+  <div class="nav-item" onclick="showSection('ai')">🤖 AI Assistant</div>
   <div class="nav-section">Business</div>
   <div class="nav-item" onclick="showSection('cost')">💰 Cost</div>
   <div class="nav-item" onclick="showSection('reliability')">📊 Reliability</div>
   <div class="nav-item" onclick="showSection('incidents')">🚨 Incidents</div>
   <div class="nav-item" onclick="showSection('predictive')">🔮 Predictive</div>
+  <!-- SECTION: AI ASSISTANT -->
+  <div class="section" id="section-ai">
+    <div class="section-title">AI Operations Assistant</div>
+    <div class="section-sub">Ask anything about your production system.</div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="font-size:12px;color:#64748b;margin-bottom:12px">Example questions:</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="askQuestion('Why is checkout failing?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Why is checkout failing?</button>
+        <button onclick="askQuestion('Is the database healthy?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Is the database healthy?</button>
+        <button onclick="askQuestion('What is causing high latency?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">What is causing high latency?</button>
+        <button onclick="askQuestion('Which service needs attention?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Which service needs attention?</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px">
+      <div style="display:flex;gap:8px">
+        <input id="ai-input" type="text" placeholder="Ask about your production system..."
+          style="flex:1;background:#0f1117;border:1px solid #2d3148;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:13px;outline:none"
+          onkeydown="if(event.key==='Enter') submitQuestion()"/>
+        <button onclick="submitQuestion()"
+          style="background:#7c8cf8;border:none;color:white;padding:10px 20px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">
+          Ask
+        </button>
+      </div>
+    </div>
+
+    <div id="ai-response" style="display:none">
+      <div class="card">
+        <div style="font-size:11px;color:#7c8cf8;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">AI Analysis</div>
+        <div id="ai-question" style="font-size:14px;color:#e2e8f0;font-weight:600;margin-bottom:12px"></div>
+        <div id="ai-answer" style="font-size:13px;color:#94a3b8;line-height:1.8;white-space:pre-wrap"></div>
+      </div>
+    </div>
+
+    <div id="ai-loading" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px">
+      🤖 Analyzing system metrics...
+    </div>
+  </div>
 </div>
 
 <!-- MAIN -->
@@ -336,7 +376,7 @@
 </div>
 
 <script>
-const API = 'http://localhost:5000';
+const API = window.location.origin;
 const charts = {};
 
 // Chart defaults
@@ -675,6 +715,36 @@ async function loadPredictive() {
       <div class="forecast-action">→ ${f.action}</div>
     </div>`).join('');
 }
+async function submitQuestion() {
+  const input = document.getElementById('ai-input');
+  const question = input.value.trim();
+  if (!question) return;
+  askQuestion(question);
+}
+
+async function askQuestion(question) {
+  document.getElementById('ai-input').value = question;
+  document.getElementById('ai-response').style.display = 'none';
+  document.getElementById('ai-loading').style.display = 'block';
+
+  try {
+    const res = await fetch(`${API}/api/ask`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const d = await res.json();
+
+    document.getElementById('ai-question').textContent = '❓ ' + d.question;
+    document.getElementById('ai-answer').textContent = d.answer;
+    document.getElementById('ai-response').style.display = 'block';
+  } catch(e) {
+    document.getElementById('ai-answer').textContent = 'Error connecting to AI assistant.';
+    document.getElementById('ai-response').style.display = 'block';
+  } finally {
+    document.getElementById('ai-loading').style.display = 'none';
+  }
+}
 
 // ── NAVIGATION ───────────────────────────────────────────
 
@@ -690,7 +760,8 @@ const loaders = {
   cost: loadCost,
   reliability: loadReliability,
   incidents: loadIncidents,
-  predictive: loadPredictive
+  predictive: loadPredictive,
+  ai: () => {}
 };
 
 let currentSection = 'infrastructure';
