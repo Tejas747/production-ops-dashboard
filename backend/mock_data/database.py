@@ -27,7 +27,8 @@ def get_database_data():
         "SELECT * FROM analytics_events WHERE timestamp > NOW() - INTERVAL 24 HOURS",
         "SELECT u.*, COUNT(o.id) FROM users u LEFT JOIN orders o ON u.id = o.user_id GROUP BY u.id"
     ]
-    for query in random.sample(sample_queries, k=slow_queries if slow_queries > 0 else 1):
+    k = min(slow_queries if slow_queries > 0 else 1, len(sample_queries))
+    for query in random.sample(sample_queries, k=k):
         slow_query_list.append({
             "query": query[:60] + "...",
             "duration_ms": round(current_value(base=2400, variance=800), 0),
