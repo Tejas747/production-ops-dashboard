@@ -142,6 +142,7 @@
 
   <div class="nav-section">Infrastructure</div>
   <div class="nav-item active" onclick="showSection('infrastructure')">🖥️ Infrastructure</div>
+  <div class="nav-item" onclick="showSection('dependency')">🔗 Service Graph</div>
   <div class="nav-item" onclick="showSection('application')">📡 Application</div>
   <div class="nav-item" onclick="showSection('database')">🗄️ Database</div>
   <div class="nav-item" onclick="showSection('cache')">⚡ Cache · Redis</div>
@@ -156,6 +157,25 @@
   <div class="nav-item" onclick="showSection('reliability')">📊 Reliability</div>
   <div class="nav-item" onclick="showSection('incidents')">🚨 Incidents</div>
   <div class="nav-item" onclick="showSection('predictive')">🔮 Predictive</div>
+
+  <!-- SECTION: DEPENDENCY GRAPH -->
+  <div class="section" id="section-dependency">
+    <div class="section-title">Service Dependency Graph</div>
+    <div class="section-sub">20 microservices — failures highlighted in red.</div>
+    <div class="grid grid-3" id="dep-summary-cards"></div>
+    <div class="card">
+      <div class="card-title">Live Service Map</div>
+      <div style="overflow-x:auto">
+        <svg id="dep-graph" width="640" height="560" style="display:block;margin:0 auto"></svg>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:#64748b">
+        <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:50%;margin-right:4px"></span>Healthy</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-right:4px"></span>Warning</span>
+        <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:50%;margin-right:4px"></span>Critical</span>
+        <span><span style="display:inline-block;width:10px;height:2px;background:#ef4444;margin-right:4px;vertical-align:middle"></span>Failing edge</span>
+      </div>
+    </div>
+  </div>
   <!-- SECTION: AI ASSISTANT -->
   <div class="section" id="section-ai">
     <div class="section-title">AI Operations Assistant</div>
@@ -842,6 +862,120 @@ function clearChat() {
 }
 
 // ── NAVIGATION ───────────────────────────────────────────
+async function loadDependency() {
+  const d = await fetch(`${API}/api/dependency-graph`).then(r => r.json());
+
+  document.getElementById('dep-summary-cards').innerHTML = [
+    card('Total Services', d.total, 'Microservices', 'ok'),
+    card('Healthy', d.total - d.failing_count, 'Operating normally', 'ok'),
+    card('Failing', d.failing_count, 'Require attention', d.failing_count > 0 ? 'critical' : 'ok'),
+  ].join('');
+
+  const svg = document.getElementById('dep-graph');
+  svg.innerHTML = '';
+
+  const tierLabels = {
+    client: 'Client layer',
+    gateway: 'API gateway',
+    core: 'Core services',
+    support: 'Support services',
+    data: 'Data services',
+    infra: 'Infrastructure'
+  };
+
+  const tierY = { client: 20, gateway: 100, core: 190, support: 290, data: 390, infra: 490 };
+  const tierColors = {
+    client: '#7c8cf8', gateway: '#06b6d4',
+    core: '#22c55e', support: '#f59e0b',
+    data: '#a78bfa', infra: '#f87171'
+  };
+
+  const statusColor = { healthy: '#22c55e', warning: '#f59e0b', critical: '#ef4444' };
+  const nodeMap = {};
+  d.services.forEach(s => { nodeMap[s.id] = s; });
+
+  // Draw tier labels
+  const tiers = [...new Set(d.services.map(s => s.tier))];
+  tiers.forEach(tier => {
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', 8);
+    label.setAttribute('y', tierY[tier] + 20);
+    label.setAttribute('font-size', '9');
+    label.setAttribute('fill', '#475569');
+    label.setAttribute('font-family', 'monospace');
+    label.textContent = tierLabels[tier] || tier;
+    svg.appendChild(label);
+  });
+
+  // Draw edges first (behind nodes)
+  d.edges.forEach(edge => {
+    const from = nodeMap[edge.from];
+    const to = nodeMap[edge.to];
+    if (!from || !to) return;
+
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', from.x + 50);
+    line.setAttribute('y1', from.y + 18);
+    line.setAttribute('x2', to.x + 50);
+    line.setAttribute('y2', to.y + 18);
+    line.setAttribute('stroke', edge.status === 'failing' ? '#ef4444' : '#2d3148');
+    line.setAttribute('stroke-width', edge.status === 'failing' ? '1.5' : '0.8');
+    line.setAttribute('stroke-dasharray', edge.status === 'failing' ? '4 2' : 'none');
+    line.setAttribute('opacity', edge.status === 'failing' ? '0.9' : '0.5');
+    svg.appendChild(line);
+  });
+
+  // Draw nodes
+  d.services.forEach(svc => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.setAttribute('cursor', 'pointer');
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    rect.setAttribute('x', svc.x);
+    rect.setAttribute('y', svc.y);
+    rect.setAttribute('width', 100);
+    rect.setAttribute('height', 36);
+    rect.setAttribute('rx', 6);
+    rect.setAttribute('fill', '#1a1d27');
+    rect.setAttribute('stroke', statusColor[svc.status] || '#2d3148');
+    rect.setAttribute('stroke-width', svc.status === 'healthy' ? '0.8' : '2');
+    g.appendChild(rect);
+
+    // Status dot
+    const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    dot.setAttribute('cx', svc.x + 10);
+    dot.setAttribute('cy', svc.y + 12);
+    dot.setAttribute('r', 3);
+    dot.setAttribute('fill', statusColor[svc.status] || '#64748b');
+    g.appendChild(dot);
+
+    // Label
+    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    text.setAttribute('x', svc.x + 50);
+    text.setAttribute('y', svc.y + 13);
+    text.setAttribute('text-anchor', 'middle');
+    text.setAttribute('dominant-baseline', 'central');
+    text.setAttribute('font-size', '10');
+    text.setAttribute('font-family', 'Segoe UI, sans-serif');
+    text.setAttribute('fill', '#e2e8f0');
+    text.textContent = svc.label;
+    g.appendChild(text);
+
+    // Status label
+    const status = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    status.setAttribute('x', svc.x + 50);
+    status.setAttribute('y', svc.y + 27);
+    status.setAttribute('text-anchor', 'middle');
+    status.setAttribute('dominant-baseline', 'central');
+    status.setAttribute('font-size', '9');
+    status.setAttribute('font-family', 'Segoe UI, sans-serif');
+    status.setAttribute('fill', statusColor[svc.status] || '#64748b');
+    status.textContent = svc.status;
+    g.appendChild(status);
+
+    svg.appendChild(g);
+  });
+}
 
 const loaders = {
   infrastructure: loadInfrastructure,
@@ -851,11 +985,12 @@ const loaders = {
   messaging: loadMessaging,
   external: loadExternal,
   security: loadSecurity,
-  hygiene: loadHygiene,
+  hygiene: loadHygiene, 
   cost: loadCost,
   reliability: loadReliability,
   incidents: loadIncidents,
   predictive: loadPredictive,
+  dependency: loadDependency,
   ai: () => {}
 };
 

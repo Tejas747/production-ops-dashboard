@@ -3,10 +3,7 @@ services:
     name: production-ops-dashboard
     runtime: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: python backend/app.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --workers 4
 
   - type: cron
     name: keep-alive-ping
