@@ -744,9 +744,11 @@ async function askQuestion(question) {
 function toggleChat() {
   const panel = document.getElementById('chat-panel');
   const bubble = document.getElementById('chat-bubble');
+  const label = document.getElementById('ask-ai-label');
   const isOpen = panel.style.display === 'flex';
   panel.style.display = isOpen ? 'none' : 'flex';
   bubble.style.display = isOpen ? 'flex' : 'none';
+  if (label) label.style.display = 'none';
 }
 
 async function sendChat(prefill) {
@@ -983,8 +985,13 @@ document.getElementById('last-updated').textContent =
 
 <!-- FLOATING AI CHAT BUBBLE -->
 <div id="chat-bubble" onclick="toggleChat()"
-  style="position:fixed;bottom:24px;right:24px;width:52px;height:52px;background:#7c8cf8;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px #7c8cf855;z-index:1000;transition:all 0.2s">
-  💬
+  style="position:fixed;bottom:24px;right:24px;cursor:pointer;display:flex;align-items:center;gap:8px;z-index:1000">
+  <div id="ask-ai-label" style="background:#7c8cf8;color:white;font-size:11px;font-weight:600;padding:6px 12px;border-radius:20px;animation:blink-label 1.5s ease-in-out infinite;white-space:nowrap">
+    Ask AI
+  </div>
+  <div style="width:52px;height:52px;background:#7c8cf8;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 20px #7c8cf855;animation:blink-bubble 1.5s ease-in-out infinite">
+    💬
+  </div>
 </div>
 
 <!-- CHAT PANEL -->
@@ -1076,6 +1083,14 @@ document.getElementById('last-updated').textContent =
 }
 #chat-messages::-webkit-scrollbar { width: 4px; }
 #chat-messages::-webkit-scrollbar-thumb { background: #2d3148; border-radius: 2px; }
+@keyframes blink-label {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(0.95); }
+}
+@keyframes blink-bubble {
+  0%, 100% { box-shadow: 0 4px 20px #7c8cf855; transform: scale(1); }
+  50% { box-shadow: 0 4px 30px #7c8cf8aa; transform: scale(1.08); }
+}
 </style>
 </body>
 </html>
