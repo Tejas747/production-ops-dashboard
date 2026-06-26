@@ -7,3 +7,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+
+  - type: cron
+    name: keep-alive-ping
+    runtime: python
+    schedule: "*/10 * * * *"
+    buildCommand: pip install requests
+    startCommand: python -c "import requests; r = requests.get('https://production-ops-dashboard.onrender.com/ping'); print(r.json())"
