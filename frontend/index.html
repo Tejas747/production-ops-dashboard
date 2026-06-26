@@ -10,7 +10,7 @@
   body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; display: flex; height: 100vh; overflow: hidden; }
 
   /* Sidebar */
-  #sidebar { width: 220px; background: #1a1d27; border-right: 1px solid #2d3148; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
+  #sidebar { width: 180px; background: #1a1d27; border-right: 1px solid #2d3148; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; }
   #sidebar .logo { padding: 18px 16px; font-size: 13px; font-weight: 700; color: #7c8cf8; border-bottom: 1px solid #2d3148; letter-spacing: 0.5px; }
   #sidebar .logo span { display: block; font-size: 10px; color: #64748b; font-weight: 400; margin-top: 2px; }
   .nav-item { padding: 10px 16px; cursor: pointer; font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px; border-left: 3px solid transparent; transition: all 0.2s; }
@@ -36,7 +36,7 @@
   .topbar-refresh:hover { background: #3d4168; color: #e2e8f0; }
 
   /* Content */
-  #content { flex: 1; overflow-y: auto; padding: 24px; }
+  #content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 24px; min-width: 0; }
   .section { display: none; }
   .section.active { display: block; }
   .section-title { font-size: 18px; font-weight: 600; color: #e2e8f0; margin-bottom: 4px; }
@@ -157,64 +157,6 @@
   <div class="nav-item" onclick="showSection('reliability')">📊 Reliability</div>
   <div class="nav-item" onclick="showSection('incidents')">🚨 Incidents</div>
   <div class="nav-item" onclick="showSection('predictive')">🔮 Predictive</div>
-
-  <!-- SECTION: DEPENDENCY GRAPH -->
-  <div class="section" id="section-dependency">
-    <div class="section-title">Service Dependency Graph</div>
-    <div class="section-sub">20 microservices — failures highlighted in red.</div>
-    <div class="grid grid-3" id="dep-summary-cards"></div>
-    <div class="card">
-      <div class="card-title">Live Service Map</div>
-      <div style="overflow-x:auto">
-        <svg id="dep-graph" width="640" height="560" style="display:block;margin:0 auto"></svg>
-      </div>
-      <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:#64748b">
-        <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:50%;margin-right:4px"></span>Healthy</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-right:4px"></span>Warning</span>
-        <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:50%;margin-right:4px"></span>Critical</span>
-        <span><span style="display:inline-block;width:10px;height:2px;background:#ef4444;margin-right:4px;vertical-align:middle"></span>Failing edge</span>
-      </div>
-    </div>
-  </div>
-  <!-- SECTION: AI ASSISTANT -->
-  <div class="section" id="section-ai">
-    <div class="section-title">AI Operations Assistant</div>
-    <div class="section-sub">Ask anything about your production system.</div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div style="font-size:12px;color:#64748b;margin-bottom:12px">Example questions:</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button onclick="askQuestion('Why is checkout failing?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Why is checkout failing?</button>
-        <button onclick="askQuestion('Is the database healthy?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Is the database healthy?</button>
-        <button onclick="askQuestion('What is causing high latency?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">What is causing high latency?</button>
-        <button onclick="askQuestion('Which service needs attention?')" style="background:#22263a;border:1px solid #2d3148;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:11px;cursor:pointer">Which service needs attention?</button>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:16px">
-      <div style="display:flex;gap:8px">
-        <input id="ai-input" type="text" placeholder="Ask about your production system..."
-          style="flex:1;background:#0f1117;border:1px solid #2d3148;color:#e2e8f0;padding:10px 14px;border-radius:8px;font-size:13px;outline:none"
-          onkeydown="if(event.key==='Enter') submitQuestion()"/>
-        <button onclick="submitQuestion()"
-          style="background:#7c8cf8;border:none;color:white;padding:10px 20px;border-radius:8px;font-size:13px;cursor:pointer;font-weight:600">
-          Ask
-        </button>
-      </div>
-    </div>
-
-    <div id="ai-response" style="display:none">
-      <div class="card">
-        <div style="font-size:11px;color:#7c8cf8;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px">AI Analysis</div>
-        <div id="ai-question" style="font-size:14px;color:#e2e8f0;font-weight:600;margin-bottom:12px"></div>
-        <div id="ai-answer" style="font-size:13px;color:#94a3b8;line-height:1.8;white-space:pre-wrap"></div>
-      </div>
-    </div>
-
-    <div id="ai-loading" style="display:none;text-align:center;padding:40px;color:#64748b;font-size:13px">
-      🤖 Analyzing system metrics...
-    </div>
-  </div>
 </div>
 
 <!-- MAIN -->
@@ -388,6 +330,25 @@
       <div class="section-title">Predictive Monitoring</div>
       <div class="section-sub">What will break before users notice?</div>
       <div class="grid grid-2" id="forecast-cards"></div>
+    </div>
+
+    <!-- SECTION: DEPENDENCY GRAPH -->
+    <div class="section" id="section-dependency">
+        <div class="section-title">Service Dependency Graph</div>
+        <div class="section-sub">20 microservices — failures highlighted in red.</div>
+        <div class="grid grid-3" id="dep-summary-cards"></div>
+        <div class="card">
+        <div class="card-title">Live Service Map</div>
+        <div style="width:100%;overflow-x:auto">
+            <svg id="dep-graph" viewBox="0 0 540 560" style="display:block;width:75%;height:auto;margin:0 auto"></svg>
+        </div>
+        <div style="display:flex;gap:16px;margin-top:12px;font-size:11px;color:#64748b">
+            <span><span style="display:inline-block;width:10px;height:10px;background:#22c55e;border-radius:50%;margin-right:4px"></span>Healthy</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#f59e0b;border-radius:50%;margin-right:4px"></span>Warning</span>
+            <span><span style="display:inline-block;width:10px;height:10px;background:#ef4444;border-radius:50%;margin-right:4px"></span>Critical</span>
+            <span><span style="display:inline-block;width:10px;height:2px;background:#ef4444;margin-right:4px;vertical-align:middle"></span>Failing edge</span>
+        </div>
+        </div>
     </div>
 
   </div>
@@ -933,8 +894,8 @@ async function loadDependency() {
     const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
     rect.setAttribute('x', svc.x);
     rect.setAttribute('y', svc.y);
-    rect.setAttribute('width', 100);
-    rect.setAttribute('height', 36);
+    rect.setAttribute('width', 90);
+    rect.setAttribute('height', 30);
     rect.setAttribute('rx', 6);
     rect.setAttribute('fill', '#1a1d27');
     rect.setAttribute('stroke', statusColor[svc.status] || '#2d3148');
@@ -955,7 +916,7 @@ async function loadDependency() {
     text.setAttribute('y', svc.y + 13);
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('dominant-baseline', 'central');
-    text.setAttribute('font-size', '10');
+    text.setAttribute('font-size', '9');
     text.setAttribute('font-family', 'Segoe UI, sans-serif');
     text.setAttribute('fill', '#e2e8f0');
     text.textContent = svc.label;
@@ -967,7 +928,7 @@ async function loadDependency() {
     status.setAttribute('y', svc.y + 27);
     status.setAttribute('text-anchor', 'middle');
     status.setAttribute('dominant-baseline', 'central');
-    status.setAttribute('font-size', '9');
+    status.setAttribute('font-size', '8');
     status.setAttribute('font-family', 'Segoe UI, sans-serif');
     status.setAttribute('fill', statusColor[svc.status] || '#64748b');
     status.textContent = svc.status;

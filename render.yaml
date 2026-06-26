@@ -3,7 +3,7 @@ services:
     name: production-ops-dashboard
     runtime: python
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --workers 4
+    startCommand: gunicorn --chdir backend app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
 
   - type: cron
     name: keep-alive-ping
